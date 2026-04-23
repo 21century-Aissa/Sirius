@@ -1,22 +1,4 @@
-# SIRIUS_MOFA
+# SIRIUS
 
-Assistant "Sirius" avec UI MOFA (CustomTkinter) + pipeline MOFA (R) + chat Ollama.
+An Intelligent Agent for Automated Multi-Omics Analysis and Clinical Data integration for precision medicine. 
 
-## Lancer (Windows)
-
-1. Installer les dependances Python:
-
-```bat
-pip install -r requirements.txt
-```
-
-2. Lancer:
-
-```bat
-run_sirius_mofa_windows.bat
-```
-
-## Notes
-
-- Le pipeline R necessite `Rscript` sur le PATH et les packages R requis (MOFA2, etc.).
-- Les documents du `work_dir` (PDF/CSV/TSV/TXT) sont automatiquement fournis au chat (PDF via extraction de texte `pypdf`).

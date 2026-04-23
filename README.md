@@ -2,9 +2,9 @@
   <img src="https://raw.githubusercontent.com/21century-Aissa/Sirius/main/SIRIUS_dialogs/sirius_logo.png" alt="SIRIUS Logo" width="180"/>
 </p>
 
-# AI Sirius MOFA — Intelligent Agent for Multi-Omics Analysis and Precision Medicine
+# An Intelligent Agent for Multi-Omics Analysis and Precision Medicine
 
-AI Sirius MOFA is an intelligent bioinformatics agent designed to automate and assist multi-omics analysis in the context of precision medicine. It combines a desktop graphical interface (CustomTkinter) with an R-based analytical pipeline built on MOFA2 (Multi-Omics Factor Analysis v2), a Bayesian latent factor model that simultaneously integrates multiple omics layers — mutations, methylation, mRNA, miRNA, proteomics — to identify coordinated and interpretable sources of biological variation. The agent is powered by an LLM (Ollama, Claude, or DeepSeek) that guides the user at every step of the analysis, interprets results, diagnoses pipeline errors, and automatically searches for evidence in the PubMed literature.
+AI Sirius is an intelligent bioinformatics agent designed to automate and assist multi-omics analysis in the context of precision medicine. It combines a desktop graphical interface (CustomTkinter) with an R-based analytical pipeline built on MOFA2 (Multi-Omics Factor Analysis v2), a Bayesian latent factor model that simultaneously integrates multiple omics layers — mutations, methylation, mRNA, miRNA, proteomics — to identify coordinated and interpretable sources of biological variation. The agent is powered by an LLM (Ollama, Claude, or DeepSeek) that guides the user at every step of the analysis, interprets results, diagnoses pipeline errors, and automatically searches for evidence in the PubMed literature.
 
 ### AI Sirius MOFA — 面向多组学分析与精准医学的智能代理
 

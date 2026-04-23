@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Build and Dist
+build/
+dist/
+*.spec
+
+# IDEs
+.vscode/
+.idea/
+
+# Project specific
+SIRIUS_workspace/*/
+!SIRIUS_workspace/default/
+!SIRIUS_workspace/default/.gitkeep

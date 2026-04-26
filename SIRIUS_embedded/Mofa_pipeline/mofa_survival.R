@@ -22,36 +22,10 @@ suppressMessages({
   library(dplyr)
 })
 
-# =============================================================================
-# UTILITAIRES
-# =============================================================================
-
-parse_args <- function(args) {
-  params <- list()
-  for (arg in args) {
-    parts <- strsplit(arg, "=", fixed = TRUE)[[1]]
-    if (length(parts) >= 2) {
-      key   <- parts[1]
-      value <- paste(parts[-1], collapse = "=")
-      params[[key]] <- value
-    }
-  }
-  return(params)
-}
-
-save_gg <- function(p, filepath, width = 10, height = 7) {
-  if (!preview_only) {
-    pdf(filepath, width = width, height = height)
-    print(p)
-    dev.off()
-    cat(sprintf("  ✓ PDF enregistré : %s\n", filepath))
-  }
-  png_path <- sub("\\.pdf$", "_preview.png", filepath)
-  grDevices::png(png_path, width = round(width * 100), height = round(height * 100), res = 100)
-  print(p)
-  dev.off()
-  cat(sprintf("  ✓ Preview PNG : %s\n", png_path))
-}
+# ── Source des utilitaires partagés (lib/) ───────────────────────────────────
+.script_dir <- dirname(sub("--file=", "", commandArgs()[grep("--file=", commandArgs())]))
+source(file.path(.script_dir, "lib", "mofa_utils.R"))
+source(file.path(.script_dir, "lib", "mofa_io.R"))
 
 # =============================================================================
 # SECTION 0 — Lecture des arguments
@@ -83,25 +57,17 @@ preview_only <- isTRUE(params[["preview_only"]] == "TRUE")  # PNG only, no PDF
 
 setwd(work_dir)
 
-cat("========================================================\n")
-cat(sprintf("  MOFA SURVIVAL — %s\n", analysis))
-cat(sprintf("  Modèle   : %s\n", model_path))
-cat(sprintf("  Temps    : %s  |  Événement : %s\n", col_time, col_event))
-cat("========================================================\n\n")
+mofa_header("MOFA SURVIVAL", analysis, list(
+  "Temps"      = col_time,
+  "Événement" = col_event
+))
 
 # =============================================================================
 # SECTION 1 — Chargement du modèle & objet Survie
 # =============================================================================
 
 cat("[ÉTAPE 1] Chargement du modèle MOFA...\n")
-# Support both RDS (metadata included) and HDF5
-if (tolower(tools::file_ext(model_path)) == "rds") {
-  mofa_model <- readRDS(model_path)
-  cat("  ✓ Modèle chargé depuis RDS.\n")
-} else {
-  mofa_model <- load_model(model_path)
-  cat("  ✓ Modèle chargé depuis HDF5.\n")
-}
+mofa_model <- load_model_auto(model_path)
 
 meta <- samples_metadata(mofa_model)
 
@@ -388,3 +354,125 @@ if (analysis == "kaplan_meier_all") {
 cat("========================================================\n")
 cat(sprintf("  SURVIVAL ANALYSIS TERMINÉE : %s.pdf\n", out_name))
 cat("========================================================\n")
+
+# =============================================================================
+# SECTION 6 — Survival sur clusters (kaplan_meier_clusters / cox_clusters /
+#             cox_diagnostics)
+# =============================================================================
+
+kaplan_meier_clusters <- function(surv_data, output_dir) {
+  cat("[kaplan_meier_clusters] Lecture clusters.rds...\n")
+  clusters <- load_clusters(output_dir)
+
+  df_cl <- data.frame(
+    sample  = names(clusters),
+    cluster = factor(clusters),
+    stringsAsFactors = FALSE
+  )
+  surv_data$sample <- rownames(surv_data)
+  merged <- merge(surv_data, df_cl, by = "sample")
+  cat(sprintf("  ✓ %d samples appariés\n", nrow(merged)))
+
+  fit <- survfit(Surv(time, status) ~ cluster, data = merged)
+  p_km <- ggsurvplot(
+    fit, data = merged,
+    pval       = TRUE,
+    conf.int   = TRUE,
+    risk.table = TRUE,
+    palette    = "nejm"
+  )
+
+  outfile <- file.path(output_dir, "km_clusters.pdf")
+  save_gg(p_km, outfile, width = 10, height = 8)
+}
+
+cox_clusters <- function(surv_data, covariates = NULL, output_dir) {
+  cat("[cox_clusters] Lecture clusters.rds...\n")
+  clusters <- load_clusters(output_dir)
+
+  df_cl <- data.frame(
+    sample  = names(clusters),
+    cluster = factor(clusters),
+    stringsAsFactors = FALSE
+  )
+  surv_data$sample <- rownames(surv_data)
+  merged <- merge(surv_data, df_cl, by = "sample")
+  cat(sprintf("  ✓ %d samples appariés\n", nrow(merged)))
+
+  rhs <- "cluster"
+  if (!is.null(covariates) && length(covariates) > 0) {
+    cov_present <- intersect(covariates, colnames(merged))
+    if (length(cov_present) > 0) {
+      rhs <- paste(c("cluster", cov_present), collapse = " + ")
+    }
+  }
+  fml <- as.formula(paste0("Surv(time, status) ~ ", rhs))
+  cat(sprintf("  ✓ Formule : %s\n", deparse(fml)))
+
+  fit <- coxph(fml, data = merged)
+
+  p_forest <- ggforest(fit, data = merged)
+  outfile <- file.path(output_dir, "cox_clusters.pdf")
+  save_gg(p_forest, outfile, width = 10, height = 8)
+
+  sum_path <- file.path(output_dir, "cox_clusters_summary.txt")
+  sink(sum_path)
+  print(summary(fit))
+  sink()
+  cat(sprintf("  ✓ Résumé enregistré : %s\n", sum_path))
+
+  invisible(fit)
+}
+
+cox_diagnostics <- function(cox_model, output_dir) {
+  cat("[cox_diagnostics] cox.zph...\n")
+  zph <- cox.zph(cox_model)
+
+  p_zph <- ggcoxzph(zph)
+  outfile <- file.path(output_dir, "cox_zph.pdf")
+  save_gg(p_zph, outfile, width = 10, height = 8)
+
+  sum_path <- file.path(output_dir, "cox_zph_summary.txt")
+  sink(sum_path)
+  print(zph)
+  sink()
+  cat(sprintf("  ✓ Résumé enregistré : %s\n", sum_path))
+}
+
+# --- Dispatch additionnel : analyses basées sur clusters ---
+if (analysis %in% c("kaplan_meier_clusters", "cox_clusters", "cox_diagnostics")) {
+  surv_data <- data.frame(
+    time   = SurvObject[, 1],
+    status = as.numeric(SurvObject[, 2]),
+    row.names = rownames(Z),
+    stringsAsFactors = FALSE
+  )
+  # Joindre les colonnes meta (covariables potentielles)
+  meta_join <- meta
+  if (!is.null(rownames(meta_join))) {
+    common_cols <- setdiff(colnames(meta_join), c("time", "status", "sample"))
+    for (cc in common_cols) {
+      surv_data[[cc]] <- meta_join[[cc]][match(rownames(surv_data), rownames(meta_join))]
+    }
+  }
+
+  cov_str <- params[["covariates"]]
+  covariates <- NULL
+  if (!is.null(cov_str) && nzchar(cov_str)) {
+    covariates <- trimws(strsplit(cov_str, ",", fixed = TRUE)[[1]])
+    covariates <- covariates[nzchar(covariates)]
+  }
+
+  if (analysis == "kaplan_meier_clusters") {
+    kaplan_meier_clusters(surv_data, work_dir)
+  } else if (analysis == "cox_clusters") {
+    cox_clusters(surv_data, covariates, work_dir)
+  } else if (analysis == "cox_diagnostics") {
+    fit <- cox_clusters(surv_data, covariates, work_dir)
+    cox_diagnostics(fit, work_dir)
+  }
+
+  cat("========================================================\n")
+  cat(sprintf("  CLUSTER SURVIVAL ANALYSIS TERMINÉE : %s\n", analysis))
+  cat("========================================================\n")
+}

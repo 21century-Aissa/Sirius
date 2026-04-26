@@ -24,40 +24,14 @@ suppressMessages({
   library(purrr)
 })
 
+# ── Source des utilitaires partagés (lib/) ───────────────────────────────────
+.script_dir <- dirname(sub("--file=", "", commandArgs()[grep("--file=", commandArgs())]))
+source(file.path(.script_dir, "lib", "mofa_utils.R"))
+source(file.path(.script_dir, "lib", "mofa_io.R"))
+
 # ── cowplot optionnel (comparaison de tests)
 has_cowplot <- requireNamespace("cowplot", quietly = TRUE)
 if (has_cowplot) suppressMessages(library(cowplot))
-
-# =============================================================================
-# UTILITAIRES
-# =============================================================================
-
-parse_args <- function(args) {
-  params <- list()
-  for (arg in args) {
-    parts <- strsplit(arg, "=", fixed = TRUE)[[1]]
-    if (length(parts) >= 2) {
-      key   <- parts[1]
-      value <- paste(parts[-1], collapse = "=")
-      params[[key]] <- value
-    }
-  }
-  return(params)
-}
-
-save_gg <- function(p, filepath, width = 10, height = 7) {
-  if (!preview_only) {
-    pdf(filepath, width = width, height = height)
-    if (inherits(p, "gg") || inherits(p, "ggplot")) print(p) else print(p)
-    dev.off()
-    cat(sprintf("  ✓ PDF enregistré : %s\n", filepath))
-  }
-  png_path <- sub("\\.pdf$", "_preview.png", filepath)
-  grDevices::png(png_path, width = round(width * 100), height = round(height * 100), res = 100)
-  print(p)
-  dev.off()
-  cat(sprintf("  ✓ Preview PNG : %s\n", png_path))
-}
 
 # =============================================================================
 # SECTION 0 — Lecture des arguments
@@ -98,29 +72,19 @@ fdr_threshold  <- if (!is.null(params[["fdr_threshold"]])) as.numeric(params[["f
 
 setwd(work_dir)
 
-cat("========================================================\n")
-cat(sprintf("  MOFA GSEA — %s\n", analysis))
-cat(sprintf("  Modèle      : %s\n", model_path))
-cat(sprintf("  Vue         : %s\n", view_gsea))
-cat(sprintf("  Facteurs    : %s\n", factors_gsea))
-cat(sprintf("  Signe       : %s\n", sign_gsea))
-cat(sprintf("  Test stat.  : %s\n", stat_test))
-cat(sprintf("  Gene sets   : %s\n", geneset_source))
-cat("========================================================\n\n")
+mofa_header("MOFA GSEA", analysis, list(
+  "Vue"        = view_gsea,
+  "Test"       = stat_test,
+  "Gene sets"  = geneset_source
+))
 
 # =============================================================================
 # SECTION 1 — Chargement du modèle
 # =============================================================================
 
 cat("[ÉTAPE 1] Chargement du modèle MOFA...\n")
-# Support both RDS (metadata included) and HDF5
-if (tolower(tools::file_ext(model_path)) == "rds") {
-  mofa_model <- readRDS(model_path)
-  cat("  ✓ Modèle chargé depuis RDS.\n\n")
-} else {
-  mofa_model <- load_model(model_path)
-  cat("  ✓ Modèle chargé depuis HDF5.\n\n")
-}
+mofa_model <- load_model_auto(model_path)
+cat("\n")
 
 # =============================================================================
 # SECTION 2 — Chargement du gene set matrix
@@ -521,7 +485,7 @@ if (analysis == "gsea_compare_tests") {
   dt2 <- as.data.table(enrichment2$pval[, fi_names, drop = FALSE])
   dt2[, test := stat_test2][, pathway := seq_len(.N)]
 
-  dt_hist <- rbind(dt1, dt2) %>%
+  dt_hist <- rbind(dt1, dt2) |>
     melt(id.vars = c("test", "pathway"), variable.name = "factor")
 
   p_hist <- ggplot(dt_hist, aes(x = value, fill = test)) +
@@ -551,7 +515,7 @@ if (analysis == "gsea_compare_tests") {
   )
 
   p_scatter <- ggplot(dt_scatter,
-      aes_string(x = stat_test, y = stat_test2)) +
+      aes(x = .data[[stat_test]], y = .data[[stat_test2]])) +
     geom_point(size = 0.6, alpha = 0.5, color = "#555555") +
     geom_abline(slope = 1, intercept = 0, color = "orange", linewidth = 0.8) +
     facet_wrap(~factor, scales = "free", nrow = 1) +

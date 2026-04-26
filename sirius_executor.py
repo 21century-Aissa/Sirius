@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 from sirius_paths import (
+    MOFA_CLUSTERING_R,
     MOFA_GSEA_R,
     MOFA_PIPELINE_R,
     MOFA_PLOTS_R,
@@ -169,6 +170,65 @@ def run_mofa_survival(
         )
     except subprocess.TimeoutExpired:
         return -2, f"Survival R interrompu : timeout {timeout_s} s depasse."
+    except Exception as e:
+        return -3, f"Erreur lancement Rscript : {e}"
+
+    log = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    return proc.returncode, log
+
+
+def run_mofa_clustering(
+    model_path: str,
+    output_dir: str,
+    analysis: str,
+    method: str = "kmeans",
+    k: int = 3,
+    var_threshold: float = 0,
+    factor_x: int = 1,
+    factor_y: int = 2,
+    covariates: str | None = None,
+    rscript_exe: str | None = None,
+    timeout_s: int = 2 * 3600,
+) -> Tuple[int, str]:
+    root = Path(output_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+
+    rscript = rscript_exe or find_rscript()
+    if not rscript:
+        return -1, "Rscript introuvable dans le PATH."
+    if not MOFA_CLUSTERING_R.is_file():
+        return -1, f"Script R introuvable: {MOFA_CLUSTERING_R}"
+
+    cmd = [
+        rscript,
+        str(MOFA_CLUSTERING_R),
+        "--model", model_path,
+        "--output_dir", str(root),
+        "--analysis", analysis,
+        "--method", str(method),
+        "--k", str(int(k)),
+        "--var_threshold", str(var_threshold),
+        "--factor_x", str(int(factor_x)),
+        "--factor_y", str(int(factor_y)),
+    ]
+    if covariates is not None and str(covariates).strip() != "":
+        if isinstance(covariates, (list, tuple)):
+            covariates = ",".join(str(c) for c in covariates)
+        cmd.extend(["--covariates", str(covariates)])
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ},
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired:
+        return -2, f"Clustering R interrompu : timeout {timeout_s} s depasse."
     except Exception as e:
         return -3, f"Erreur lancement Rscript : {e}"
 

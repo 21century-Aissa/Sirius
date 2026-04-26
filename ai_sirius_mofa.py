@@ -36,7 +36,24 @@ from sirius_paths import MOFA_PIPELINE_R
 from plots_window import PlotsWindow
 
 
-LOGO_PATH = Path(__file__).resolve().parent / "SIRIUS_dialogs" / "logo.png"
+LOGO_PATH = Path(__file__).resolve().parent / "SIRIUS_dialogs" / "sirius_logo.png"
+ICON_PATH = Path(__file__).resolve().parent / "SIRIUS_dialogs" / "sirius.ico"
+
+
+# ── Windows : forcer un AppUserModelID propre pour que la barre des tâches
+#    affiche l'icône de l'app au lieu de celle de python.exe.
+#    Doit être appelé AVANT la création de la fenêtre Tk.
+def _set_windows_app_user_model_id(app_id: str = "Sirius.MOFA.App.1") -> None:
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+    except Exception:
+        pass
+
+
+_set_windows_app_user_model_id()
 
 
 ctk.set_appearance_mode("dark")
@@ -179,7 +196,7 @@ class AISiriusMofaApp(ctk.CTk):
 
         ctk.CTkLabel(
             hdr,
-            text="  AI Sirius MOFA  |  MOFA2 pipeline + chat Ollama",
+            text="  AI Sirius MOFA ",
             font=ctk.CTkFont(family="Consolas", size=18, weight="bold"),
             text_color=ACCENT,
         ).pack(side="left", padx=16, pady=14)
@@ -248,6 +265,13 @@ class AISiriusMofaApp(ctk.CTk):
         self._build_chat_panel()
 
     def _try_set_window_icon(self):
+        # Icône native Windows (.ico) pour la barre de titre / barre des tâches
+        if ICON_PATH.is_file():
+            try:
+                self.iconbitmap(default=str(ICON_PATH))
+            except Exception:
+                pass
+        # Fallback / complément PNG via iconphoto (multi-plateforme)
         if not LOGO_PATH.is_file():
             return
         try:
@@ -513,7 +537,7 @@ class AISiriusMofaApp(ctk.CTk):
     def _build_chat_panel(self):
         title = ctk.CTkLabel(
             self.right,
-            text="Chat (Ollama) — results interpretation",
+            text="Sirius chat",
             font=ctk.CTkFont(family="Consolas", size=14, weight="bold"),
             text_color=ACCENT,
         )
